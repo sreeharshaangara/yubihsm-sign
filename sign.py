@@ -1,21 +1,47 @@
+import cysecuretools as CySecureTools
 from yubihsm import YubiHsm
 from yubihsm.objects import AsymmetricKey
-from yubihsm.defs import ALGORITHM, CAPABILITY
+from yubihsm.objects import ObjectInfo
+from yubihsm.defs import ALGORITHM, CAPABILITY, OBJECT
+import subprocess
 
-#Connect to the Connector and establish a session using the default auth key:
-hsm = YubiHsm.connect("yhusb://serial=9681257")
-session = hsm.create_session_derived(1, "password")
+def get_signing_key(session):
+    # Check if key exists
+    key_exists = False
+    for i in session.list_objects():
+        if str(i)== 'AsymmetricKey(id=61150)':
+            key_exists = True
 
-#Create a new EC key for signing:
-key = AsymmetricKey.generate(session, 0, "EC Key", 1, CAPABILITY.SIGN_ECDSA, ALGORITHM.EC_P256)
+    if(key_exists == False):
+        # Create new key
+        key = AsymmetricKey.generate(session, 61150, "EC Key", 1, CAPABILITY.SIGN_ECDSA, ALGORITHM.EC_P256)
+    else: 
+        # Use existing key
+        key = AsymmetricKey(session, 61150)
 
-#Sign a message
-data = b'Hello world!'
-signature = key.sign_ecdsa(data)
+    return(key)
 
-#Delete the key from the YubiHSM 2
-key.delete()
+if __name__ == '__main__':
 
-#Close session and connection:
-session.close()
-hsm.close()
+    yubiconnectproc = subprocess.Popen("yubihsm-connector -d")
+
+    # Connect to the YubiHSM via the connector using the default password:
+    hsm = YubiHsm.connect('http://localhost:12345')
+    session = hsm.create_session_derived(1, 'password')
+
+    key = get_signing_key(session)
+
+    # pub_key is a cryptography.io ec.PublicKey, see https://cryptography.io
+    pub_key = key.get_public_key()
+    print(pub_key)
+
+
+    # Sign some data:
+    signature = key.sign_ecdsa(b'Hello world!')  # Create a signature.
+
+    print(signature)
+
+    # Clean up
+    session.close()
+    hsm.close()
+    yubiconnectproc.terminate()
