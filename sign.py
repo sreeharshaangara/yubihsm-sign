@@ -5,19 +5,30 @@ from yubihsm.objects import ObjectInfo
 from yubihsm.defs import ALGORITHM, CAPABILITY, OBJECT
 import subprocess
 
-def get_signing_key(session):
+
+def create_signing_key(session, keyid):
+    # Check if key exists
+    key = ''
+    key_exists = False
+    for i in session.list_objects():
+        if str(i)== ('AsymmetricKey(id='+str(keyid)+')'):
+            key_exists = True
+            print('Found existing key')
+    if(key_exists == False):
+        # Create new key
+        key = AsymmetricKey.generate(session, keyid, "EC Key", 1, CAPABILITY.SIGN_ECDSA, ALGORITHM.EC_P256)
+    return(key)
+
+def get_signing_key(session, keyid):
     # Check if key exists
     key_exists = False
     for i in session.list_objects():
-        if str(i)== 'AsymmetricKey(id=61150)':
+        if str(i)== ('AsymmetricKey(id='+str(keyid)+')'):
             key_exists = True
 
-    if(key_exists == False):
-        # Create new key
-        key = AsymmetricKey.generate(session, 61150, "EC Key", 1, CAPABILITY.SIGN_ECDSA, ALGORITHM.EC_P256)
-    else: 
+    if(key_exists == True):
         # Use existing key
-        key = AsymmetricKey(session, 61150)
+        key = AsymmetricKey(session, keyid)
 
     return(key)
 
@@ -28,8 +39,8 @@ if __name__ == '__main__':
     # Connect to the YubiHSM via the connector using the default password:
     hsm = YubiHsm.connect('http://localhost:12345')
     session = hsm.create_session_derived(1, 'password')
-
-    key = get_signing_key(session)
+    #create_signing_key(session, 100)
+    key = get_signing_key(session, 100)
 
     # pub_key is a cryptography.io ec.PublicKey, see https://cryptography.io
     pub_key = key.get_public_key()
